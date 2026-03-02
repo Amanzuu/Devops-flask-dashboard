@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, Project
 from . import db
+from .models import User, Project, Deployment
 
 main = Blueprint("main", __name__)
 
@@ -67,3 +68,36 @@ def create_project():
         return redirect(url_for("main.projects"))
 
     return render_template("create_project.html")
+
+#Deploye route
+
+import time
+import random
+
+@main.route("/projects/<int:project_id>/deploy")
+@login_required
+def deploy(project_id):
+    project = Project.query.get_or_404(project_id)
+
+    deployment = Deployment(
+        project_id=project.id,
+        status="Running",
+        logs="Starting deployment...\nCloning repository...\nBuilding Docker image...\n"
+    )
+
+    db.session.add(deployment)
+    db.session.commit()
+
+    # Simulate deployment result
+    time.sleep(2)
+
+    if random.choice([True, False]):
+        deployment.status = "Success"
+        deployment.logs += "Deployment completed successfully!"
+    else:
+        deployment.status = "Failed"
+        deployment.logs += "Deployment failed during build step."
+
+    db.session.commit()
+
+    return redirect(url_for("main.home"))

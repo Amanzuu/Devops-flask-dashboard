@@ -11,13 +11,21 @@
             <div class="card-body">
                 <h5 class="card-title">{{ project.name }}</h5>
                 <p class="card-text">{{ project.github_repo }}</p>
+
+                <a href="/projects/{{ project.id }}/deploy"
+                   class="btn btn-sm btn-success mt-2">
+                    Deploy
+                </a>
             </div>
         </div>
     </div>
     {% else %}
-    <p>No projects yet.</p>
+        <p>No projects yet.</p>
     {% endfor %}
 </div>
 
-<a href="/projects/create" class="btn btn-primary mt-3">+ Create New Project</a>
+<a href="/projects/create" class="btn btn-primary mt-3">
+    + Create New Project
+</a>
+
 {% endblock %}
