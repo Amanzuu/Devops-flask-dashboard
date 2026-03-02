@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Welcome, {{ current_user.username }} 👋</h2>
+<hr>
+
+<div class="row">
+    {% for project in projects %}
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ project.name }}</h5>
+                <p class="card-text">{{ project.github_repo }}</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p>No projects yet.</p>
+    {% endfor %}
+</div>
+
+<a href="/projects/create" class="btn btn-primary mt-3">+ Create New Project</a>
+{% endblock %}
