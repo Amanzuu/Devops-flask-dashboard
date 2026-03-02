@@ -9,6 +9,7 @@
     <div class="col-md-4">
         <div class="card shadow-sm mb-3">
             <div class="card-body">
+
                 <h5 class="card-title">{{ item.project.name }}</h5>
                 <p class="card-text">{{ item.project.github_repo }}</p>
 
@@ -20,11 +21,6 @@
                     {% elif item.deployment.status == "Running" %}
                         <span class="badge bg-warning text-dark">Running</span>
                     {% endif %}
-
-                    <a href="{{ url_for('main.view_logs', deployment_id=item.deployment.id) }}"
-                       class="btn btn-sm btn-outline-dark mt-2">
-                        View Logs
-                    </a>
                 {% else %}
                     <span class="badge bg-secondary">No Deployments</span>
                 {% endif %}
@@ -33,6 +29,11 @@
                     <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
                        class="btn btn-sm btn-success">
                         Deploy
+                    </a>
+
+                    <a href="{{ url_for('main.project_deployments', project_id=item.project.id) }}"
+                       class="btn btn-sm btn-outline-primary ms-2">
+                        Deployment History
                     </a>
                 </div>
 
@@ -44,7 +45,7 @@
     {% endfor %}
 </div>
 
-<a href="/projects/create" class="btn btn-primary mt-3">
+<a href="{{ url_for('main.create_project') }}" class="btn btn-primary mt-3">
     + Create New Project
 </a>
 

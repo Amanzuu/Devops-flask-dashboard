@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>Deployment History</h3>
+<p><strong>Project:</strong> {{ project.name }}</p>
+<hr>
+
+<table class="table table-bordered table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Logs</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for deployment in deployments %}
+        <tr>
+            <td>#{{ deployment.id }}</td>
+
+            <td>
+                {% if deployment.status == "Success" %}
+                    <span class="badge bg-success">Success</span>
+                {% elif deployment.status == "Failed" %}
+                    <span class="badge bg-danger">Failed</span>
+                {% elif deployment.status == "Running" %}
+                    <span class="badge bg-warning text-dark">Running</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ deployment.status }}</span>
+                {% endif %}
+            </td>
+
+            <td>{{ deployment.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+
+            <td>
+                <a href="{{ url_for('main.view_logs', deployment_id=deployment.id) }}"
+                   class="btn btn-sm btn-outline-dark">
+                    View Logs
+                </a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4" class="text-center">No deployments yet.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{{ url_for('main.home') }}" class="btn btn-secondary">
+    Back to Dashboard
+</a>
+
+{% endblock %}

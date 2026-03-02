@@ -171,6 +171,31 @@ def deploy(project_id):
 
     return redirect(url_for("main.home"))
 
+# -----------------------------
+# Add routes
+# -----------------------------
+@main.route("/projects/<int:project_id>/deployments")
+@login_required
+def project_deployments(project_id):
+
+    # Ensure project belongs to logged-in user
+    project = Project.query.filter_by(
+        id=project_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+    deployments = (
+        Deployment.query
+        .filter_by(project_id=project.id)
+        .order_by(Deployment.created_at.desc())
+        .all()
+    )
+
+    return render_template(
+        "deployment_history.html",
+        project=project,
+        deployments=deployments
+    )
 
 # -----------------------------
 # View Deployment Logs
