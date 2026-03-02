@@ -1,20 +1,66 @@
-from flask import Blueprint, render_template, redirect, url_for, request
+from flask import Blueprint, render_template, redirect, url_for, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, Project, Deployment
 from . import db
+import os
+import subprocess
+import shutil
 
 from datetime import datetime
+from threading import Thread
 import pytz
-import time
-import random
-
 main = Blueprint("main", __name__)
 
 
-# -----------------------------
+# --------------------------------------------------
+# Background Deployment Function (Threaded)
+# --------------------------------------------------
+def run_deployment_async(app, deployment_id):
+
+    with app.app_context():
+
+        deployment = db.session.get(Deployment, deployment_id)
+
+        if not deployment:
+            return
+
+        import time
+        import random
+
+        start_time = deployment.created_at
+
+        # Step 1
+        time.sleep(2)
+        deployment.logs += "\nPulling latest changes..."
+        db.session.commit()
+
+        # Step 2
+        time.sleep(2)
+        deployment.logs += "\nBuilding Docker image..."
+        db.session.commit()
+
+        # Step 3
+        time.sleep(2)
+
+        if random.choice([True, False]):
+            deployment.status = "Success"
+            deployment.logs += "\nDeployment completed successfully!"
+        else:
+            deployment.status = "Failed"
+            deployment.logs += "\nDeployment failed during build step."
+
+        end_time = datetime.utcnow()
+
+        deployment.completed_at = end_time
+        deployment.duration = (end_time - start_time).total_seconds()
+
+        db.session.commit()
+
+
+# --------------------------------------------------
 # Home / Dashboard
-# -----------------------------
+# --------------------------------------------------
 @main.route("/")
 @login_required
 def home():
@@ -38,9 +84,9 @@ def home():
     return render_template("dashboard.html", project_data=project_data)
 
 
-# -----------------------------
+# --------------------------------------------------
 # Register
-# -----------------------------
+# --------------------------------------------------
 @main.route("/register", methods=["GET", "POST"])
 def register():
 
@@ -52,19 +98,15 @@ def register():
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
 
-        # Check duplicate email
+        # Duplicate email check
         if User.query.filter_by(email=email).first():
-            return render_template(
-                "register.html",
-                error="Email already registered."
-            )
+            return render_template("register.html",
+                                   error="Email already registered.")
 
-        # Check duplicate username
+        # Duplicate username check
         if User.query.filter_by(username=username).first():
-            return render_template(
-                "register.html",
-                error="Username already taken."
-            )
+            return render_template("register.html",
+                                   error="Username already taken.")
 
         user = User(
             username=username,
@@ -80,9 +122,9 @@ def register():
     return render_template("register.html")
 
 
-# -----------------------------
+# --------------------------------------------------
 # Login
-# -----------------------------
+# --------------------------------------------------
 @main.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -96,16 +138,12 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if not user:
-            return render_template(
-                "login.html",
-                error="Email not found."
-            )
+            return render_template("login.html",
+                                   error="Email not found.")
 
         if not check_password_hash(user.password, password):
-            return render_template(
-                "login.html",
-                error="Incorrect password."
-            )
+            return render_template("login.html",
+                                   error="Incorrect password.")
 
         login_user(user)
         return redirect(url_for("main.home"))
@@ -113,9 +151,9 @@ def login():
     return render_template("login.html")
 
 
-# -----------------------------
+# --------------------------------------------------
 # Logout
-# -----------------------------
+# --------------------------------------------------
 @main.route("/logout")
 @login_required
 def logout():
@@ -123,9 +161,9 @@ def logout():
     return redirect(url_for("main.login"))
 
 
-# -----------------------------
+# --------------------------------------------------
 # Create Project
-# -----------------------------
+# --------------------------------------------------
 @main.route("/projects/create", methods=["GET", "POST"])
 @login_required
 def create_project():
@@ -148,9 +186,9 @@ def create_project():
     return render_template("create_project.html")
 
 
-# -----------------------------
-# Deploy Project
-# -----------------------------
+# --------------------------------------------------
+# Deploy Project (Async Threaded)
+# --------------------------------------------------
 @main.route("/projects/<int:project_id>/deploy")
 @login_required
 def deploy(project_id):
@@ -160,40 +198,30 @@ def deploy(project_id):
         user_id=current_user.id
     ).first_or_404()
 
-    start_time = datetime.utcnow()
-
     deployment = Deployment(
         project_id=project.id,
         status="Running",
-        logs="Starting deployment...\nCloning repository...\nBuilding Docker image...\n",
-        created_at=start_time
+        logs="Starting deployment...\nCloning repository...\n",
+        created_at=datetime.utcnow()
     )
 
     db.session.add(deployment)
     db.session.commit()
 
-    time.sleep(2)
-
-    if random.choice([True, False]):
-        deployment.status = "Success"
-        deployment.logs += "\nDeployment completed successfully!"
-    else:
-        deployment.status = "Failed"
-        deployment.logs += "\nDeployment failed during build step."
-
-    end_time = datetime.utcnow()
-
-    deployment.completed_at = end_time
-    deployment.duration = (end_time - start_time).total_seconds()
-
-    db.session.commit()
+    # Start background thread
+    thread = Thread(
+        target=run_deployment_async,
+        args=(current_app._get_current_object(), deployment.id)
+    )
+    thread.daemon = True
+    thread.start()
 
     return redirect(url_for("main.home"))
 
 
-# -----------------------------
-# Deployment History
-# -----------------------------
+# --------------------------------------------------
+# Deployment History (IST Conversion)
+# --------------------------------------------------
 @main.route("/projects/<int:project_id>/deployments")
 @login_required
 def project_deployments(project_id):
@@ -210,7 +238,6 @@ def project_deployments(project_id):
         .all()
     )
 
-    # Convert UTC to IST
     ist = pytz.timezone("Asia/Kolkata")
 
     for deployment in deployments:
@@ -230,14 +257,17 @@ def project_deployments(project_id):
     )
 
 
-# -----------------------------
-# View Logs
-# -----------------------------
+# --------------------------------------------------
+# View Deployment Logs
+# --------------------------------------------------
 @main.route("/deployments/<int:deployment_id>/logs")
 @login_required
 def view_logs(deployment_id):
 
-    deployment = Deployment.query.get_or_404(deployment_id)
+    deployment = db.session.get(Deployment, deployment_id)
+
+    if not deployment:
+        return "Not Found", 404
 
     if deployment.project.user_id != current_user.id:
         return "Unauthorized", 403

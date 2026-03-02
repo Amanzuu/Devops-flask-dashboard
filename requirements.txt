@@ -8,6 +8,7 @@ greenlet==3.3.2
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
+pytz==2025.2
 SQLAlchemy==2.0.47
 typing_extensions==4.15.0
 Werkzeug==3.1.6

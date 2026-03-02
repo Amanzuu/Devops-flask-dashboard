@@ -56,19 +56,15 @@ class Project(db.Model):
 # -----------------------------
 class Deployment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-
-    project_id = db.Column(
-        db.Integer,
-        db.ForeignKey("project.id"),
-        nullable=False
-    )
+    project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
 
     status = db.Column(db.String(50))
     logs = db.Column(db.Text)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
-    duration = db.Column(db.Float, nullable=True)  # seconds
+    duration = db.Column(db.Float, nullable=True)
 
-    def __repr__(self):
-        return f"<Deployment {self.id} - {self.status}>"
+    docker_image = db.Column(db.String(150))
+    container_name = db.Column(db.String(150))
+    port = db.Column(db.Integer)
