@@ -2,24 +2,53 @@
 {% block content %}
 
 <div class="row justify-content-center">
-    <div class="col-md-6 col-lg-5">
-        <div class="card shadow p-4">
-            <h3 class="mb-4 text-center">Register</h3>
+    <div class="col-md-6">
 
-            <form method="POST">
-                <input class="form-control mb-3" type="text" name="username" placeholder="Username" required>
-                <input class="form-control mb-3" type="email" name="email" placeholder="Email" required>
-                <input class="form-control mb-3" type="password" name="password" placeholder="Password" required>
-                <button class="btn btn-success w-100">Register</button>
-            </form>
+        <div class="card shadow-sm">
+            <div class="card-body">
 
-            <div class="mt-3 text-center">
-                <span>Already have an account?</span>
-                <a href="{{ url_for('main.login') }}" class="btn btn-outline-secondary btn-sm ms-2">
-                    Login
-                </a>
+                <h3 class="mb-3 text-center">Register</h3>
+
+                {% if error %}
+                <div class="alert alert-danger">
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <form method="POST">
+                    <div class="mb-3">
+                        <input type="text" name="username"
+                               class="form-control"
+                               placeholder="Username" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <input type="email" name="email"
+                               class="form-control"
+                               placeholder="Email" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <input type="password" name="password"
+                               class="form-control"
+                               placeholder="Password" required>
+                    </div>
+
+                    <button type="submit"
+                            class="btn btn-success w-100">
+                        Register
+                    </button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('main.login') }}">
+                        Already have an account? Login
+                    </a>
+                </div>
+
             </div>
         </div>
+
     </div>
 </div>
 
