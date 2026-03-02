@@ -41,7 +41,7 @@
                 </td>
 
                 <td>
-                    {{ deployment.local_time.strftime('%d %b %Y, %I:%M:%S %p') }}
+                    {{ deployment.completed_at.strftime('%d %b %Y %I:%M %p') if deployment.completed_at else '-' }}
                 </td>
 
                 <td>

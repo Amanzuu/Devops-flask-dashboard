@@ -57,7 +57,6 @@ class Project(db.Model):
 class Deployment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
-
     status = db.Column(db.String(50))
     logs = db.Column(db.Text)
 
@@ -65,6 +64,7 @@ class Deployment(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     duration = db.Column(db.Float, nullable=True)
 
-    docker_image = db.Column(db.String(150))
-    container_name = db.Column(db.String(150))
-    port = db.Column(db.Integer)
+    port = db.Column(db.Integer, nullable=True)
+
+    # 👇 NEW FIELD
+    progress = db.Column(db.Integer, default=0)

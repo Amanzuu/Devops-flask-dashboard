@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, current_app, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, Project, Deployment
@@ -8,13 +8,12 @@ import os
 import subprocess
 from datetime import datetime
 from threading import Thread
-import pytz
 
 main = Blueprint("main", __name__)
 
 
 # ==================================================
-# BACKGROUND DEPLOYMENT FUNCTION (REAL DOCKER)
+# BACKGROUND DEPLOYMENT FUNCTION
 # ==================================================
 def run_deployment_async(app, deployment_id):
 
@@ -32,9 +31,10 @@ def run_deployment_async(app, deployment_id):
         project_path = os.path.join(base_dir, f"project_{project.id}")
 
         try:
-            # -----------------------------
-            # Clone or Pull Repository
-            # -----------------------------
+            deployment.progress = 10
+            db.session.commit()
+
+            # ------------------ CLONE OR PULL ------------------
             if os.path.exists(project_path):
 
                 deployment.logs += "\nRepository exists. Pulling latest changes..."
@@ -61,13 +61,15 @@ def run_deployment_async(app, deployment_id):
                     errors="ignore"
                 )
 
-            # -----------------------------
-            # Check Dockerfile
-            # -----------------------------
+            deployment.progress = 30
+            db.session.commit()
+
+            # ------------------ CHECK DOCKERFILE ------------------
             dockerfile_path = os.path.join(project_path, "Dockerfile")
             if not os.path.exists(dockerfile_path):
                 deployment.status = "Failed"
-                deployment.logs += "\nDockerfile not found in repository."
+                deployment.logs += "\nDockerfile not found."
+                deployment.progress = 100
                 db.session.commit()
                 return
 
@@ -75,20 +77,14 @@ def run_deployment_async(app, deployment_id):
             container_name = f"project_{project.id}_container"
             port = 5000 + project.id
 
-            # -----------------------------
-            # Remove old container (if exists)
-            # -----------------------------
+            # Remove old container if exists
             subprocess.run(
                 ["docker", "rm", "-f", container_name],
                 capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="ignore"
+                text=True
             )
 
-            # -----------------------------
-            # Build Docker Image
-            # -----------------------------
+            # ------------------ BUILD IMAGE ------------------
             deployment.logs += "\nBuilding Docker image..."
             db.session.commit()
 
@@ -102,9 +98,10 @@ def run_deployment_async(app, deployment_id):
                 errors="ignore"
             )
 
-            # -----------------------------
-            # Run Container
-            # -----------------------------
+            deployment.progress = 70
+            db.session.commit()
+
+            # ------------------ RUN CONTAINER ------------------
             deployment.logs += "\nStarting container..."
             db.session.commit()
 
@@ -123,12 +120,14 @@ def run_deployment_async(app, deployment_id):
             )
 
             deployment.status = "Success"
-            deployment.logs += "\nDeployment completed successfully!"
             deployment.port = port
+            deployment.logs += "\nDeployment completed successfully!"
+            deployment.progress = 100
 
         except subprocess.CalledProcessError as e:
             deployment.status = "Failed"
             deployment.logs += f"\nError:\n{e.stderr}"
+            deployment.progress = 100
 
         deployment.completed_at = datetime.utcnow()
         deployment.duration = (
@@ -149,7 +148,7 @@ def home():
     project_data = []
 
     for project in projects:
-        latest_deployment = (
+        latest = (
             Deployment.query
             .filter_by(project_id=project.id)
             .order_by(Deployment.created_at.desc())
@@ -158,7 +157,7 @@ def home():
 
         project_data.append({
             "project": project,
-            "deployment": latest_deployment
+            "deployment": latest
         })
 
     return render_template("dashboard.html", project_data=project_data)
@@ -256,7 +255,7 @@ def create_project():
 
 
 # ==================================================
-# DEPLOY ROUTE (START THREAD)
+# DEPLOY ROUTE
 # ==================================================
 @main.route("/projects/<int:project_id>/deploy")
 @login_required
@@ -271,7 +270,8 @@ def deploy(project_id):
         project_id=project.id,
         status="Running",
         logs="Starting deployment...\n",
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
+        progress=0
     )
 
     db.session.add(deployment)
@@ -283,6 +283,37 @@ def deploy(project_id):
     )
     thread.daemon = True
     thread.start()
+
+    return redirect(url_for("main.home"))
+
+
+# ==================================================
+# STOP PROJECT
+# ==================================================
+@main.route("/projects/<int:project_id>/stop")
+@login_required
+def stop_project(project_id):
+
+    project = Project.query.filter_by(
+        id=project_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+    container_name = f"project_{project.id}_container"
+
+    subprocess.run(["docker", "rm", "-f", container_name],
+                   capture_output=True, text=True)
+
+    latest = (
+        Deployment.query
+        .filter_by(project_id=project.id)
+        .order_by(Deployment.created_at.desc())
+        .first()
+    )
+
+    if latest:
+        latest.status = "Stopped"
+        db.session.commit()
 
     return redirect(url_for("main.home"))
 
@@ -306,25 +337,14 @@ def project_deployments(project_id):
         .all()
     )
 
-    ist = pytz.timezone("Asia/Kolkata")
-
-    for deployment in deployments:
-        if deployment.created_at:
-            deployment.local_time = (
-                deployment.created_at
-                .replace(tzinfo=pytz.utc)
-                .astimezone(ist)
-            )
-
     return render_template(
         "deployment_history.html",
         project=project,
         deployments=deployments
     )
 
-
 # ==================================================
-# VIEW LOGS
+# VIEW DEPLOYMENT LOGS
 # ==================================================
 @main.route("/deployments/<int:deployment_id>/logs")
 @login_required
@@ -339,3 +359,24 @@ def view_logs(deployment_id):
         return "Unauthorized", 403
 
     return render_template("logs.html", deployment=deployment)
+
+# ==================================================
+# DEPLOYMENT STATUS API
+# ==================================================
+@main.route("/deployment-status/<int:deployment_id>")
+@login_required
+def deployment_status(deployment_id):
+
+    deployment = db.session.get(Deployment, deployment_id)
+
+    if not deployment:
+        return jsonify({"error": "Not found"}), 404
+
+    if deployment.project.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    return jsonify({
+        "status": deployment.status,
+        "progress": deployment.progress,
+        "port": deployment.port
+    })
