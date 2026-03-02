@@ -38,6 +38,7 @@ class Project(db.Model):
 class Deployment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     status = db.Column(db.String(50), default="Pending")
+    logs = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
