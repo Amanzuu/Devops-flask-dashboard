@@ -77,7 +77,11 @@ import random
 @main.route("/projects/<int:project_id>/deploy")
 @login_required
 def deploy(project_id):
-    project = Project.query.get_or_404(project_id)
+
+    project = Project.query.filter_by(
+        id=project_id,
+        user_id=current_user.id
+    ).first_or_404()
 
     deployment = Deployment(
         project_id=project.id,
@@ -88,7 +92,6 @@ def deploy(project_id):
     db.session.add(deployment)
     db.session.commit()
 
-    # Simulate deployment result
     time.sleep(2)
 
     if random.choice([True, False]):
