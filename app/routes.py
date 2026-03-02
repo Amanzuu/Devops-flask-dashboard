@@ -3,64 +3,144 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, Project, Deployment
 from . import db
+
 import os
 import subprocess
-import shutil
-
 from datetime import datetime
 from threading import Thread
 import pytz
+
 main = Blueprint("main", __name__)
 
 
-# --------------------------------------------------
-# Background Deployment Function (Threaded)
-# --------------------------------------------------
+# ==================================================
+# BACKGROUND DEPLOYMENT FUNCTION (REAL DOCKER)
+# ==================================================
 def run_deployment_async(app, deployment_id):
 
     with app.app_context():
 
         deployment = db.session.get(Deployment, deployment_id)
-
         if not deployment:
             return
 
-        import time
-        import random
+        project = deployment.project
 
-        start_time = deployment.created_at
+        base_dir = os.path.join(os.getcwd(), "deployments")
+        os.makedirs(base_dir, exist_ok=True)
 
-        # Step 1
-        time.sleep(2)
-        deployment.logs += "\nPulling latest changes..."
-        db.session.commit()
+        project_path = os.path.join(base_dir, f"project_{project.id}")
 
-        # Step 2
-        time.sleep(2)
-        deployment.logs += "\nBuilding Docker image..."
-        db.session.commit()
+        try:
+            # -----------------------------
+            # Clone or Pull Repository
+            # -----------------------------
+            if os.path.exists(project_path):
 
-        # Step 3
-        time.sleep(2)
+                deployment.logs += "\nRepository exists. Pulling latest changes..."
+                db.session.commit()
 
-        if random.choice([True, False]):
+                subprocess.run(
+                    ["git", "-C", project_path, "pull"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore"
+                )
+            else:
+                deployment.logs += f"\nCloning into '{project_path}'..."
+                db.session.commit()
+
+                subprocess.run(
+                    ["git", "clone", project.github_repo, project_path],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore"
+                )
+
+            # -----------------------------
+            # Check Dockerfile
+            # -----------------------------
+            dockerfile_path = os.path.join(project_path, "Dockerfile")
+            if not os.path.exists(dockerfile_path):
+                deployment.status = "Failed"
+                deployment.logs += "\nDockerfile not found in repository."
+                db.session.commit()
+                return
+
+            image_name = f"project_{project.id}_image"
+            container_name = f"project_{project.id}_container"
+            port = 5000 + project.id
+
+            # -----------------------------
+            # Remove old container (if exists)
+            # -----------------------------
+            subprocess.run(
+                ["docker", "rm", "-f", container_name],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+
+            # -----------------------------
+            # Build Docker Image
+            # -----------------------------
+            deployment.logs += "\nBuilding Docker image..."
+            db.session.commit()
+
+            subprocess.run(
+                ["docker", "build", "-t", image_name, "."],
+                cwd=project_path,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+
+            # -----------------------------
+            # Run Container
+            # -----------------------------
+            deployment.logs += "\nStarting container..."
+            db.session.commit()
+
+            subprocess.run(
+                [
+                    "docker", "run", "-d",
+                    "-p", f"{port}:5000",
+                    "--name", container_name,
+                    image_name
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+
             deployment.status = "Success"
             deployment.logs += "\nDeployment completed successfully!"
-        else:
+            deployment.port = port
+
+        except subprocess.CalledProcessError as e:
             deployment.status = "Failed"
-            deployment.logs += "\nDeployment failed during build step."
+            deployment.logs += f"\nError:\n{e.stderr}"
 
-        end_time = datetime.utcnow()
-
-        deployment.completed_at = end_time
-        deployment.duration = (end_time - start_time).total_seconds()
+        deployment.completed_at = datetime.utcnow()
+        deployment.duration = (
+            deployment.completed_at - deployment.created_at
+        ).total_seconds()
 
         db.session.commit()
 
 
-# --------------------------------------------------
-# Home / Dashboard
-# --------------------------------------------------
+# ==================================================
+# HOME / DASHBOARD
+# ==================================================
 @main.route("/")
 @login_required
 def home():
@@ -84,9 +164,9 @@ def home():
     return render_template("dashboard.html", project_data=project_data)
 
 
-# --------------------------------------------------
-# Register
-# --------------------------------------------------
+# ==================================================
+# REGISTER
+# ==================================================
 @main.route("/register", methods=["GET", "POST"])
 def register():
 
@@ -98,22 +178,13 @@ def register():
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
 
-        # Duplicate email check
         if User.query.filter_by(email=email).first():
-            return render_template("register.html",
-                                   error="Email already registered.")
+            return render_template("register.html", error="Email already registered.")
 
-        # Duplicate username check
         if User.query.filter_by(username=username).first():
-            return render_template("register.html",
-                                   error="Username already taken.")
+            return render_template("register.html", error="Username already taken.")
 
-        user = User(
-            username=username,
-            email=email,
-            password=password
-        )
-
+        user = User(username=username, email=email, password=password)
         db.session.add(user)
         db.session.commit()
 
@@ -122,9 +193,9 @@ def register():
     return render_template("register.html")
 
 
-# --------------------------------------------------
-# Login
-# --------------------------------------------------
+# ==================================================
+# LOGIN
+# ==================================================
 @main.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -138,12 +209,10 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if not user:
-            return render_template("login.html",
-                                   error="Email not found.")
+            return render_template("login.html", error="Email not found.")
 
         if not check_password_hash(user.password, password):
-            return render_template("login.html",
-                                   error="Incorrect password.")
+            return render_template("login.html", error="Incorrect password.")
 
         login_user(user)
         return redirect(url_for("main.home"))
@@ -151,9 +220,9 @@ def login():
     return render_template("login.html")
 
 
-# --------------------------------------------------
-# Logout
-# --------------------------------------------------
+# ==================================================
+# LOGOUT
+# ==================================================
 @main.route("/logout")
 @login_required
 def logout():
@@ -161,9 +230,9 @@ def logout():
     return redirect(url_for("main.login"))
 
 
-# --------------------------------------------------
-# Create Project
-# --------------------------------------------------
+# ==================================================
+# CREATE PROJECT
+# ==================================================
 @main.route("/projects/create", methods=["GET", "POST"])
 @login_required
 def create_project():
@@ -186,9 +255,9 @@ def create_project():
     return render_template("create_project.html")
 
 
-# --------------------------------------------------
-# Deploy Project (Async Threaded)
-# --------------------------------------------------
+# ==================================================
+# DEPLOY ROUTE (START THREAD)
+# ==================================================
 @main.route("/projects/<int:project_id>/deploy")
 @login_required
 def deploy(project_id):
@@ -201,14 +270,13 @@ def deploy(project_id):
     deployment = Deployment(
         project_id=project.id,
         status="Running",
-        logs="Starting deployment...\nCloning repository...\n",
+        logs="Starting deployment...\n",
         created_at=datetime.utcnow()
     )
 
     db.session.add(deployment)
     db.session.commit()
 
-    # Start background thread
     thread = Thread(
         target=run_deployment_async,
         args=(current_app._get_current_object(), deployment.id)
@@ -219,9 +287,9 @@ def deploy(project_id):
     return redirect(url_for("main.home"))
 
 
-# --------------------------------------------------
-# Deployment History (IST Conversion)
-# --------------------------------------------------
+# ==================================================
+# DEPLOYMENT HISTORY
+# ==================================================
 @main.route("/projects/<int:project_id>/deployments")
 @login_required
 def project_deployments(project_id):
@@ -247,8 +315,6 @@ def project_deployments(project_id):
                 .replace(tzinfo=pytz.utc)
                 .astimezone(ist)
             )
-        else:
-            deployment.local_time = None
 
     return render_template(
         "deployment_history.html",
@@ -257,9 +323,9 @@ def project_deployments(project_id):
     )
 
 
-# --------------------------------------------------
-# View Deployment Logs
-# --------------------------------------------------
+# ==================================================
+# VIEW LOGS
+# ==================================================
 @main.route("/deployments/<int:deployment_id>/logs")
 @login_required
 def view_logs(deployment_id):
