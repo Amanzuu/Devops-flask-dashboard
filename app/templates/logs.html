@@ -1,17 +1,50 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3>Deployment Logs</h3>
-<hr>
+<h2>Deployment Logs</h2>
 
-<div class="card shadow">
-    <div class="card-body bg-dark text-light">
-        <pre>{{ deployment.logs }}</pre>
-    </div>
+<div style="
+    background: #0f172a;
+    padding: 20px;
+    border-radius: 10px;
+    height: 400px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    border: 1px solid rgba(255,255,255,0.1);
+" id="log-box">
+{{ deployment.logs }}
 </div>
 
-<a href="{{ url_for('main.home') }}" class="btn btn-secondary mt-3">
-    Back to Dashboard
+<br>
+
+<a href="{{ url_for('main.project_deployments',
+                     project_id=deployment.project_id) }}"
+   class="btn btn-primary">
+   ← Back to History
 </a>
+
+<script>
+function fetchLogs() {
+    fetch("/deployment-status/{{ deployment.id }}")
+    .then(res => res.json())
+    .then(data => {
+        fetch("/deployments/{{ deployment.id }}/logs")
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const newLogs = doc.getElementById("log-box").innerText;
+
+            const logBox = document.getElementById("log-box");
+            logBox.innerText = newLogs;
+            logBox.scrollTop = logBox.scrollHeight;
+        });
+    });
+}
+
+setInterval(fetchLogs, 2000);
+</script>
 
 {% endblock %}

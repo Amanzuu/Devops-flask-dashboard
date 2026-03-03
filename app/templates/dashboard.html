@@ -1,117 +1,133 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h2>Welcome, {{ current_user.username }} 👋</h2>
-<hr>
+<h2 style="margin-bottom:30px;">
+    Welcome back, {{ current_user.username }} 👋
+</h2>
 
-<div class="row">
-    {% for item in project_data %}
-    <div class="col-md-4">
-        <div class="card shadow-sm mb-3">
-            <div class="card-body">
+{% for item in project_data %}
 
-                <h5 class="card-title">{{ item.project.name }}</h5>
-                <p class="text-muted small">{{ item.project.github_repo }}</p>
+<div class="card">
 
-                <!-- Status Badge -->
-                <div class="mb-2">
-                    {% if item.deployment %}
-                        {% if item.deployment.status == "Success" %}
-                            <span class="badge bg-success">Success</span>
-                        {% elif item.deployment.status == "Failed" %}
-                            <span class="badge bg-danger">Failed</span>
-                        {% elif item.deployment.status == "Running" %}
-                            <span class="badge bg-warning text-dark">Running</span>
-                        {% elif item.deployment.status == "Stopped" %}
-                            <span class="badge bg-dark">Stopped</span>
-                        {% endif %}
-                    {% else %}
-                        <span class="badge bg-secondary">No Deployments</span>
-                    {% endif %}
-                </div>
+    <!-- Project Header -->
+    <div style="margin-bottom:15px;">
+        <h3 style="margin:0;">{{ item.project.name }}</h3>
+        <p style="opacity:0.6; margin-top:5px;">
+            {{ item.project.github_repo }}
+        </p>
+    </div>
 
-                <!-- Progress Bar -->
-                {% if item.deployment and item.deployment.status == "Running" %}
-                <div class="progress mb-2">
-                    <div id="progress-{{ item.deployment.id }}"
-                         class="progress-bar progress-bar-striped progress-bar-animated"
-                         style="width: {{ item.deployment.progress }}%">
-                        {{ item.deployment.progress }}%
-                    </div>
-                </div>
-                {% endif %}
+    <!-- Status -->
+    <div style="margin-bottom:15px;">
+        {% if item.deployment %}
+            {% if item.deployment.status == "Success" %}
+                <span class="badge success">Running</span>
+            {% elif item.deployment.status == "Failed" %}
+                <span class="badge danger">Failed</span>
+            {% elif item.deployment.status == "Running" %}
+                <span class="badge warning">Deploying...</span>
+            {% elif item.deployment.status == "Stopped" %}
+                <span class="badge stopped">Stopped</span>
+            {% endif %}
+        {% else %}
+            <span class="badge stopped">No Deployments</span>
+        {% endif %}
+    </div>
 
-                <!-- Buttons -->
-                <div class="d-flex flex-wrap gap-2 mt-3">
+    <!-- PROGRESS SECTION -->
+    {% if item.deployment %}
+    <div style="margin-bottom:20px;">
 
-                    <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
-                       class="btn btn-sm btn-success">
-                        {% if item.deployment and item.deployment.status == "Success" %}
-                            Redeploy
-                        {% else %}
-                            Deploy
-                        {% endif %}
-                    </a>
+        <div style="display:flex; justify-content:space-between; font-size:13px; opacity:0.7;">
+            <span>Deployment Progress</span>
+            <span id="progress-text-{{ item.deployment.id }}">
+                {{ item.deployment.progress or 0 }}%
+            </span>
+        </div>
 
-                    <a href="{{ url_for('main.stop_project', project_id=item.project.id) }}"
-                       class="btn btn-sm btn-danger">
-                        Stop
-                    </a>
-
-                    <a href="{{ url_for('main.project_deployments', project_id=item.project.id) }}"
-                       class="btn btn-sm btn-outline-primary">
-                        History
-                    </a>
-
-                    {% if item.deployment and item.deployment.status == "Success" %}
-                    <a href="http://localhost:{{ item.deployment.port }}"
-                       target="_blank"
-                       class="btn btn-sm btn-outline-success">
-                        Open App
-                    </a>
-                    {% endif %}
-
-                </div>
-
+        <div class="progress" style="height:18px; margin-top:8px;">
+            <div class="progress-bar"
+                 id="progress-{{ item.deployment.id }}"
+                 style="width: {{ item.deployment.progress or 0 }}%;">
             </div>
         </div>
+
     </div>
-    {% else %}
-        <p>No projects yet.</p>
-    {% endfor %}
+    {% endif %}
+
+    <!-- BUTTON SECTION -->
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+
+        <!-- Deploy -->
+        <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
+           class="btn btn-success">
+            {% if item.deployment and item.deployment.status == "Success" %}
+                🔄 Redeploy
+            {% else %}
+                🚀 Deploy
+            {% endif %}
+        </a>
+
+        <!-- Stop -->
+        {% if item.deployment and item.deployment.status == "Success" %}
+            <a href="{{ url_for('main.stop_project', project_id=item.project.id) }}"
+               class="btn btn-danger">
+                ⛔ Stop
+            </a>
+        {% endif %}
+
+        <!-- Open App -->
+        {% if item.deployment and item.deployment.status == "Success" %}
+            <a href="http://localhost:{{ item.deployment.port }}"
+               target="_blank"
+               class="btn btn-primary">
+                🌐 Open App
+            </a>
+        {% endif %}
+
+        <!-- History -->
+        <a href="{{ url_for('main.project_deployments', project_id=item.project.id) }}"
+           class="btn btn-outline">
+            📜 History
+        </a>
+
+    </div>
+
 </div>
 
-<a href="{{ url_for('main.create_project') }}" class="btn btn-primary mt-3">
-    + Create New Project
+{% endfor %}
+
+<br>
+
+<a href="{{ url_for('main.create_project') }}"
+   class="btn btn-primary">
+   ➕ Create New Project
 </a>
 
-<!-- REAL-TIME PROGRESS SCRIPT -->
+<!-- LIVE PROGRESS SCRIPT -->
 <script>
-function checkDeploymentStatus(deploymentId) {
-    fetch("/deployment-status/" + deploymentId)
-        .then(response => response.json())
-        .then(data => {
+{% for item in project_data %}
+{% if item.deployment %}
+setInterval(function(){
+    fetch("/deployment-status/{{ item.deployment.id }}")
+    .then(res => res.json())
+    .then(data => {
 
-            let bar = document.getElementById("progress-" + deploymentId);
+        let bar = document.getElementById("progress-{{ item.deployment.id }}");
+        let text = document.getElementById("progress-text-{{ item.deployment.id }}");
 
-            if (bar) {
-                bar.style.width = data.progress + "%";
-                bar.innerText = data.progress + "%";
-            }
+        if(bar){
+            bar.style.width = data.progress + "%";
+        }
 
-            if (data.status !== "Running") {
-                location.reload();
-            }
-        });
-}
+        if(text){
+            text.innerText = data.progress + "%";
+        }
 
-setInterval(() => {
-    {% for item in project_data %}
-        {% if item.deployment and item.deployment.status == "Running" %}
-            checkDeploymentStatus({{ item.deployment.id }});
-        {% endif %}
-    {% endfor %}
+    });
 }, 2000);
+{% endif %}
+{% endfor %}
 </script>
 
 {% endblock %}

@@ -1,84 +1,50 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3 class="mb-3">Deployment History</h3>
+<h2>Deployment History</h2>
+<p style="opacity:0.7;">Project: {{ project.name }}</p>
 
-<div class="mb-3">
-    <strong>Project:</strong> {{ project.name }}
-</div>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Duration</th>
+            <th>Logs</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in deployments %}
+        <tr>
+            <td>#{{ d.id }}</td>
+            <td>
+                {% if d.status == "Success" %}
+                    <span class="badge success">Success</span>
+                {% elif d.status == "Failed" %}
+                    <span class="badge danger">Failed</span>
+                {% elif d.status == "Stopped" %}
+                    <span class="badge stopped">Stopped</span>
+                {% else %}
+                    <span class="badge warning">{{ d.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ d.created_at.strftime("%d %b %Y %I:%M %p") }}</td>
+            <td>{{ "%.2f"|format(d.duration or 0) }} sec</td>
+            <td>
+                <a href="{{ url_for('main.view_logs', deployment_id=d.id) }}"
+                   class="btn btn-outline">
+                   View Logs
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
-<hr>
-
-<div class="table-responsive">
-    <table class="table table-bordered table-hover align-middle">
-        <thead class="table-dark">
-            <tr>
-                <th>ID</th>
-                <th>Status</th>
-                <th>Created At (IST)</th>
-                <th>Duration</th>
-                <th>Logs</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for deployment in deployments %}
-            <tr>
-                <td>#{{ deployment.id }}</td>
-
-                <td>
-                    {% if deployment.status == "Success" %}
-                        <span class="badge bg-success">Success</span>
-                    {% elif deployment.status == "Failed" %}
-                        <span class="badge bg-danger">Failed</span>
-                    {% elif deployment.status == "Running" %}
-                        <span class="badge bg-warning text-dark">Running</span>
-                    {% else %}
-                        <span class="badge bg-secondary">
-                            {{ deployment.status }}
-                        </span>
-                    {% endif %}
-                </td>
-
-                <td>
-                    {{ deployment.completed_at.strftime('%d %b %Y %I:%M %p') if deployment.completed_at else '-' }}
-                </td>
-
-                <td>
-                    {% if deployment.duration %}
-                        {{ "%.2f"|format(deployment.duration) }} sec
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-
-                <td>
-                    <a href="{{ url_for('main.view_logs', deployment_id=deployment.id) }}"
-                       class="btn btn-sm btn-outline-dark">
-                        View Logs
-                    </a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" class="text-center">
-                    No deployments yet.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<a href="{{ url_for('main.home') }}" class="btn btn-secondary mt-3">
-    Back to Dashboard
+<br>
+<a href="{{ url_for('main.home') }}" class="btn btn-primary">
+    ← Back to Dashboard
 </a>
-
-<!-- Auto Refresh Every 5 Seconds -->
-<script>
-    setTimeout(function(){
-        location.reload();
-    }, 5000);
-</script>
 
 {% endblock %}
