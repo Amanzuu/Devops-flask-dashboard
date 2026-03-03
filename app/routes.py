@@ -351,3 +351,51 @@ def deployment_status(deployment_id):
         "progress": deployment.progress,
         "port": deployment.port
     })
+    
+    # ==================================================
+# DELETE PROJECT
+# ==================================================
+@main.route("/projects/<int:project_id>/delete", methods=["POST"])
+@login_required
+def delete_project(project_id):
+
+    project = Project.query.filter_by(
+        id=project_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+    container_name = f"project_{project.id}_container"
+    image_name = f"project_{project.id}_image"
+
+    try:
+        # Remove container ONLY if exists
+        subprocess.run(
+            ["docker", "rm", "-f", container_name],
+            capture_output=True,
+            text=True
+        )
+
+        # Remove image
+        subprocess.run(
+            ["docker", "rmi", "-f", image_name],
+            capture_output=True,
+            text=True
+        )
+
+    except Exception as e:
+        print("Docker cleanup error:", e)
+
+    # Remove project folder
+    project_path = os.path.join(os.getcwd(), "deployments", f"project_{project.id}")
+    if os.path.exists(project_path):
+        import shutil
+        shutil.rmtree(project_path)
+
+    # Delete deployments
+    Deployment.query.filter_by(project_id=project.id).delete()
+
+    # Delete project
+    db.session.delete(project)
+    db.session.commit()
+
+    return redirect(url_for("main.home"))

@@ -90,7 +90,16 @@
            class="btn btn-outline">
             📜 History
         </a>
+<form method="POST"
+      action="{{ url_for('main.delete_project', project_id=item.project.id) }}"
+      style="display:inline;"
+      onsubmit="return confirm('Are you sure you want to delete this project? This cannot be undone.');">
 
+    <button type="submit"
+            style="background:#ff4d4d;color:white;padding:10px 16px;border:none;border-radius:8px;margin-left:10px;">
+        🗑 Delete
+    </button>
+</form>
     </div>
 
 </div>
