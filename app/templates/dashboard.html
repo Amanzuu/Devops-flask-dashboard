@@ -56,17 +56,26 @@
     {% endif %}
 
     <!-- BUTTON SECTION -->
-    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
 
-        <!-- Deploy -->
-        <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
-           class="btn btn-success">
-            {% if item.deployment and item.deployment.status == "Success" %}
+        <!-- Deploy / Redeploy -->
+        {% if item.deployment and item.deployment.status == "Running" %}
+            <button class="btn" style="background:gray; cursor:not-allowed;">
+                ⏳ Deploying...
+            </button>
+
+        {% elif item.deployment and item.deployment.status == "Success" %}
+            <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
+               class="btn btn-success">
                 🔄 Redeploy
-            {% else %}
+            </a>
+
+        {% else %}
+            <a href="{{ url_for('main.deploy', project_id=item.project.id) }}"
+               class="btn btn-success">
                 🚀 Deploy
-            {% endif %}
-        </a>
+            </a>
+        {% endif %}
 
         <!-- Stop -->
         {% if item.deployment and item.deployment.status == "Success" %}
@@ -86,20 +95,26 @@
         {% endif %}
 
         <!-- History -->
-        <a href="{{ url_for('main.project_deployments', project_id=item.project.id) }}"
-           class="btn btn-outline">
+        {% if item.deployment %}
+        <a href="{{ url_for('main.deployment_history', deployment_id=item.deployment.id) }}"
+            class="btn btn-secondary">
             📜 History
         </a>
-<form method="POST"
-      action="{{ url_for('main.delete_project', project_id=item.project.id) }}"
-      style="display:inline;"
-      onsubmit="return confirm('Are you sure you want to delete this project? This cannot be undone.');">
 
-    <button type="submit"
-            style="background:#ff4d4d;color:white;padding:10px 16px;border:none;border-radius:8px;margin-left:10px;">
-        🗑 Delete
-    </button>
-</form>
+        {% endif %}
+
+        <!-- Delete -->
+        <form method="POST"
+              action="{{ url_for('main.delete_project', project_id=item.project.id) }}"
+              onsubmit="return confirm('Are you sure you want to delete this project? This cannot be undone.');">
+
+            <button type="submit"
+                    class="btn"
+                    style="background:#ff4d4d;">
+                🗑 Delete
+            </button>
+        </form>
+
     </div>
 
 </div>

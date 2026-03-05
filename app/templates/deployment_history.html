@@ -1,50 +1,66 @@
 {% extends "base.html" %}
+
 {% block content %}
 
-<h2>Deployment History</h2>
-<p style="opacity:0.7;">Project: {{ project.name }}</p>
+<h2>🚀 Deployment Details</h2>
 
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Status</th>
-            <th>Created At</th>
-            <th>Duration</th>
-            <th>Logs</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for d in deployments %}
-        <tr>
-            <td>#{{ d.id }}</td>
-            <td>
-                {% if d.status == "Success" %}
-                    <span class="badge success">Success</span>
-                {% elif d.status == "Failed" %}
-                    <span class="badge danger">Failed</span>
-                {% elif d.status == "Stopped" %}
-                    <span class="badge stopped">Stopped</span>
-                {% else %}
-                    <span class="badge warning">{{ d.status }}</span>
-                {% endif %}
-            </td>
-            <td>{{ d.created_at.strftime("%d %b %Y %I:%M %p") }}</td>
-            <td>{{ "%.2f"|format(d.duration or 0) }} sec</td>
-            <td>
-                <a href="{{ url_for('main.view_logs', deployment_id=d.id) }}"
-                   class="btn btn-outline">
-                   View Logs
-                </a>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="card">
+
+<h3>{{ deployment.project.name }}</h3>
+
+<p><strong>Status:</strong> {{ deployment.status }}</p>
+
+<p><strong>Port:</strong> {{ deployment.port }}</p>
+
+<p><strong>Progress:</strong> {{ deployment.progress }}%</p>
+
+<p><strong>Container ID:</strong> {{ container_id }}</p>
+
+<p><strong>Repository:</strong> {{ deployment.project.github_repo }}</p>
+
+<p><strong>Deployment Time:</strong> {{ deployment.created_at }}</p>
+
+</div>
 
 <br>
-<a href="{{ url_for('main.home') }}" class="btn btn-primary">
-    ← Back to Dashboard
+
+<div class="card">
+
+<h3>📜 Container Logs</h3>
+
+<pre style="
+background:#111;
+color:#00ff88;
+padding:15px;
+border-radius:6px;
+max-height:400px;
+overflow:auto;
+font-size:13px;
+">
+{{ logs }}
+</pre>
+
+</div>
+
+<br>
+
+<div style="display:flex; gap:12px; flex-wrap:wrap;">
+
+<a href="{{ url_for('main.deploy', project_id=deployment.project.id) }}"
+class="btn btn-success">
+🔄 Redeploy
 </a>
+
+<a href="{{ url_for('main.stop_project', project_id=deployment.project.id) }}"
+class="btn btn-danger">
+⛔ Stop
+</a>
+
+<a href="{{ url_for('main.home') }}"
+class="btn btn-primary">
+⬅ Back to Dashboard
+</a>
+
+</div>
 
 {% endblock %}
