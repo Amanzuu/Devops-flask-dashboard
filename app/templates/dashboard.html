@@ -97,10 +97,9 @@
         <!-- History -->
         {% if item.deployment %}
         <a href="{{ url_for('main.deployment_history', deployment_id=item.deployment.id) }}"
-            class="btn btn-secondary">
+           class="btn btn-secondary">
             📜 History
         </a>
-
         {% endif %}
 
         <!-- Delete -->
@@ -128,30 +127,127 @@
    ➕ Create New Project
 </a>
 
-<!-- LIVE PROGRESS SCRIPT -->
+<hr style="margin:50px 0;">
+
+<!-- ================================================= -->
+<!-- LIVE CONTAINER MONITORING -->
+<!-- ================================================= -->
+
+<h2 style="margin-bottom:20px;">🐳 Live Container Monitoring</h2>
+
+<div class="card">
+
+<table class="table" style="width:100%;">
+
+<thead>
+<tr>
+<th>Container</th>
+<th>CPU Usage</th>
+<th>Memory Usage</th>
+</tr>
+</thead>
+
+<tbody id="docker-stats">
+
+<tr>
+<td colspan="3" style="text-align:center;">
+Loading container stats...
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+<!-- ================================================= -->
+<!-- LIVE DEPLOYMENT PROGRESS -->
+<!-- ================================================= -->
+
 <script>
+
 {% for item in project_data %}
 {% if item.deployment %}
+
 setInterval(function(){
-    fetch("/deployment-status/{{ item.deployment.id }}")
-    .then(res => res.json())
-    .then(data => {
 
-        let bar = document.getElementById("progress-{{ item.deployment.id }}");
-        let text = document.getElementById("progress-text-{{ item.deployment.id }}");
+fetch("/deployment-status/{{ item.deployment.id }}")
 
-        if(bar){
-            bar.style.width = data.progress + "%";
-        }
+.then(res => res.json())
 
-        if(text){
-            text.innerText = data.progress + "%";
-        }
+.then(data => {
 
-    });
+let bar = document.getElementById("progress-{{ item.deployment.id }}");
+let text = document.getElementById("progress-text-{{ item.deployment.id }}");
+
+if(bar){
+bar.style.width = data.progress + "%";
+}
+
+if(text){
+text.innerText = data.progress + "%";
+}
+
+});
+
 }, 2000);
+
 {% endif %}
 {% endfor %}
+
+</script>
+
+<!-- ================================================= -->
+<!-- DOCKER LIVE STATS SCRIPT -->
+<!-- ================================================= -->
+
+<script>
+
+function loadDockerStats(){
+
+fetch("/api/docker-stats")
+
+.then(response => response.json())
+
+.then(data => {
+
+let html = "";
+
+if(data.length === 0){
+
+html = `
+<tr>
+<td colspan="3" style="text-align:center;">
+No running containers
+</td>
+</tr>
+`;
+
+}
+
+data.forEach(container => {
+
+html += `
+<tr>
+<td>${container.name}</td>
+<td>${container.cpu}</td>
+<td>${container.memory}</td>
+</tr>
+`;
+
+});
+
+document.getElementById("docker-stats").innerHTML = html;
+
+});
+
+}
+
+loadDockerStats();
+
+setInterval(loadDockerStats, 5000);
+
 </script>
 
 {% endblock %}

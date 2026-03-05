@@ -453,3 +453,47 @@ def deployment_status(deployment_id):
         "progress": deployment.progress,
         "port": deployment.port
     })
+
+# ==================================================
+# API ROUTE
+# ==================================================
+    
+@main.route("/api/docker-stats")
+@login_required
+def docker_stats():
+
+    try:
+
+        result = subprocess.run(
+            [
+                "docker",
+                "stats",
+                "--no-stream",
+                "--format",
+                "{{.Container}}|{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}"
+            ],
+            capture_output=True,
+            text=True
+        )
+
+        containers = []
+
+        for line in result.stdout.strip().split("\n"):
+
+            if not line:
+                continue
+
+            cid, name, cpu, mem = line.split("|")
+
+            containers.append({
+                "id": cid,
+                "name": name,
+                "cpu": cpu,
+                "memory": mem
+            })
+
+        return jsonify(containers)
+
+    except Exception as e:
+
+        return jsonify({"error": str(e)})
