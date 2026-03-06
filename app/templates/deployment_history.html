@@ -24,21 +24,102 @@
 
 <br>
 
+<!-- ====================================== -->
+<!-- DEPLOYMENT PIPELINE -->
+<!-- ====================================== -->
+
 <div class="card">
 
-<h3>📜 Container Logs</h3>
+<h3 style="margin-bottom:20px;">⚙️ Deployment Pipeline</h3>
 
-<pre style="
-background:#111;
-color:#00ff88;
-padding:15px;
-border-radius:6px;
-max-height:400px;
+<div id="pipeline" style="display:flex; gap:15px; flex-wrap:wrap;">
+
+<div class="pipeline-step" id="step-clone">⬜ Clone Repo</div>
+
+<div class="pipeline-step" id="step-build">⬜ Build Image</div>
+
+<div class="pipeline-step" id="step-install">⬜ Install Dependencies</div>
+
+<div class="pipeline-step" id="step-run">⬜ Start Container</div>
+
+<div class="pipeline-step" id="step-health">⬜ Health Check</div>
+
+</div>
+
+</div>
+
+<br>
+
+<!-- ====================================== -->
+<!-- DEPLOYMENT TIMELINE -->
+<!-- ====================================== -->
+
+<div class="card">
+
+<h3 style="margin-bottom:20px;">⏱ Deployment Timeline</h3>
+
+<table style="width:100%;">
+
+<tr>
+<th>Stage</th>
+<th>Time</th>
+</tr>
+
+<tr>
+<td>Clone Repository</td>
+<td id="time-clone">-</td>
+</tr>
+
+<tr>
+<td>Build Docker Image</td>
+<td id="time-build">-</td>
+</tr>
+
+<tr>
+<td>Start Container</td>
+<td id="time-run">-</td>
+</tr>
+
+<tr>
+<td>Health Check</td>
+<td id="time-health">-</td>
+</tr>
+
+<tr style="font-weight:600;">
+<td>Total Deployment Time</td>
+<td id="time-total">-</td>
+</tr>
+
+</table>
+
+</div>
+
+<br>
+
+<!-- ====================================== -->
+<!-- LIVE DEPLOYMENT LOGS -->
+<!-- ====================================== -->
+
+<div class="card">
+
+<h3>📜 Live Deployment Logs</h3>
+
+<div id="log-console"
+style="
+background:#0f172a;
+color:#22c55e;
+padding:20px;
+border-radius:8px;
+max-height:450px;
 overflow:auto;
 font-size:13px;
+font-family:monospace;
+white-space:pre-wrap;
 ">
+
 {{ logs }}
-</pre>
+
+</div>
 
 </div>
 
@@ -62,5 +143,109 @@ class="btn btn-primary">
 </a>
 
 </div>
+
+<!-- ====================================== -->
+<!-- REAL-TIME LOG STREAMING -->
+<!-- ====================================== -->
+
+<script>
+
+const logConsole = document.getElementById("log-console");
+
+const eventSource = new EventSource(
+"/api/deployment-logs/{{ deployment.id }}"
+);
+
+eventSource.onmessage = function(event){
+
+logConsole.textContent += event.data;
+
+logConsole.scrollTop = logConsole.scrollHeight;
+
+updatePipeline();
+updateTimeline();
+
+};
+
+eventSource.onerror = function(){
+console.log("Log stream closed");
+};
+
+</script>
+
+<!-- ====================================== -->
+<!-- PIPELINE STEP DETECTION -->
+<!-- ====================================== -->
+
+<script>
+
+function updatePipeline(){
+
+let logs = document.getElementById("log-console").innerText;
+
+if(logs.includes("Cloning")){
+document.getElementById("step-clone").className="pipeline-step pipeline-success";
+}
+
+if(logs.includes("Building Docker image")){
+document.getElementById("step-build").className="pipeline-step pipeline-success";
+}
+
+if(logs.includes("Installing")){
+document.getElementById("step-install").className="pipeline-step pipeline-success";
+}
+
+if(logs.includes("Starting container")){
+document.getElementById("step-run").className="pipeline-step pipeline-success";
+}
+
+if(logs.includes("Application responding")){
+document.getElementById("step-health").className="pipeline-step pipeline-success";
+}
+
+}
+
+setInterval(updatePipeline,2000);
+
+</script>
+
+<!-- ====================================== -->
+<!-- DEPLOYMENT TIMELINE SCRIPT -->
+<!-- ====================================== -->
+
+<script>
+
+let startTime = Date.now();
+
+function seconds(){
+return ((Date.now() - startTime)/1000).toFixed(1) + "s";
+}
+
+function updateTimeline(){
+
+let logs = document.getElementById("log-console").innerText;
+
+if(logs.includes("Cloning")){
+document.getElementById("time-clone").innerText = seconds();
+}
+
+if(logs.includes("Building Docker image")){
+document.getElementById("time-build").innerText = seconds();
+}
+
+if(logs.includes("Starting container")){
+document.getElementById("time-run").innerText = seconds();
+}
+
+if(logs.includes("Application responding")){
+document.getElementById("time-health").innerText = seconds();
+document.getElementById("time-total").innerText = seconds();
+}
+
+}
+
+setInterval(updateTimeline,2000);
+
+</script>
 
 {% endblock %}

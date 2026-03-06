@@ -454,6 +454,44 @@ def deployment_status(deployment_id):
         "port": deployment.port
     })
 
+from flask import Response
+
+# ==================================================
+# STREAM DEPLOYMENT LOGS (REAL-TIME)
+# ==================================================
+
+@main.route("/api/deployment-logs/<int:deployment_id>")
+@login_required
+def stream_deployment_logs(deployment_id):
+
+    def generate():
+
+        last_length = 0
+
+        while True:
+
+            deployment = db.session.get(Deployment, deployment_id)
+
+            if not deployment:
+                break
+
+            logs = deployment.logs or ""
+
+            if len(logs) > last_length:
+
+                new_logs = logs[last_length:]
+                last_length = len(logs)
+
+                yield f"data: {new_logs}\n\n"
+
+            # stop streaming when deployment finishes
+            if deployment.status in ["Success", "Failed"]:
+                break
+
+            time.sleep(1)
+
+    return Response(generate(), mimetype="text/event-stream")
+
 # ==================================================
 # API ROUTE
 # ==================================================
@@ -497,3 +535,103 @@ def docker_stats():
     except Exception as e:
 
         return jsonify({"error": str(e)})
+    
+    # ==================================================
+# SYSTEM MONITORING API
+# ==================================================
+
+import psutil
+
+@main.route("/system-stats")
+@login_required
+def system_stats():
+
+    # CPU usage
+    cpu = psutil.cpu_percent(interval=0.5)
+
+    # RAM usage
+    memory = psutil.virtual_memory().percent
+
+    # Running containers
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q"],
+            capture_output=True,
+            text=True
+        )
+
+        containers = len(result.stdout.splitlines())
+
+    except Exception:
+        containers = 0
+
+    return jsonify({
+        "cpu": cpu,
+        "memory": memory,
+        "containers": containers
+    })
+    
+# ==================================================
+# GITHUB WEBHOOK AUTO DEPLOY
+# ==================================================
+
+@main.route("/webhook/<int:project_id>", methods=["POST"])
+def github_webhook(project_id):
+
+    project = Project.query.get_or_404(project_id)
+
+    data = request.json
+
+    # only trigger on push events
+    if data.get("ref") != "refs/heads/main":
+        return jsonify({"message": "Ignored branch"}), 200
+
+    deployment = Deployment(
+        project_id=project.id,
+        status="Running",
+        logs="🚀 Auto deployment triggered by GitHub webhook\n",
+        created_at=datetime.utcnow(),
+        progress=0
+    )
+
+    db.session.add(deployment)
+    db.session.commit()
+
+    thread = Thread(
+        target=run_deployment_async,
+        args=(current_app._get_current_object(), deployment.id)
+    )
+
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({"message": "Deployment started"})
+
+# ==================================================
+# CONTAINER CONTROL
+# ==================================================
+
+@main.route("/container/restart/<container_name>")
+@login_required
+def restart_container(container_name):
+
+    subprocess.run(
+        ["docker", "restart", container_name],
+        capture_output=True,
+        text=True
+    )
+
+    return redirect(url_for("main.home"))
+
+
+@main.route("/container/stop/<container_name>")
+@login_required
+def stop_container(container_name):
+
+    subprocess.run(
+        ["docker", "stop", container_name],
+        capture_output=True,
+        text=True
+    )
+
+    return redirect(url_for("main.home"))

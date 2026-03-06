@@ -14,3 +14,16 @@ Persistent database via Docker volume
 
 Stop & redeploy support
 
+Features
+
+One-click Docker deployment
+
+GitHub repo auto-clone
+
+Container monitoring
+
+Deployment logs
+
+Deployment history
+
+Project management dashboard

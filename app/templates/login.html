@@ -1,49 +1,73 @@
 {% extends "base.html" %}
+
 {% block content %}
 
-<div class="row justify-content-center">
-    <div class="col-md-6">
+<div class="card" style="
+max-width:450px;
+margin:auto;
+margin-top:80px;
+padding:35px;
+">
 
-        <div class="card shadow-sm">
-            <div class="card-body">
+<h2 style="margin-bottom:25px;">Login</h2>
 
-                <h3 class="mb-3 text-center">Login</h3>
+<form method="POST">
 
-                {% if error %}
-                <div class="alert alert-danger">
-                    {{ error }}
-                </div>
-                {% endif %}
+<input
+type="email"
+name="email"
+placeholder="Email"
+required
+style="
+width:100%;
+padding:12px;
+margin-bottom:15px;
+border-radius:6px;
+border:none;
+"
+>
 
-                <form method="POST">
-                    <div class="mb-3">
-                        <input type="email" name="email"
-                               class="form-control"
-                               placeholder="Email" required>
-                    </div>
+<input
+type="password"
+name="password"
+placeholder="Password"
+required
+style="
+width:100%;
+padding:12px;
+margin-bottom:20px;
+border-radius:6px;
+border:none;
+"
+>
 
-                    <div class="mb-3">
-                        <input type="password" name="password"
-                               class="form-control"
-                               placeholder="Password" required>
-                    </div>
+<button
+class="btn btn-primary"
+style="width:100%; padding:12px;"
+>
+Login
+</button>
 
-                    <button type="submit"
-                            class="btn btn-primary w-100">
-                        Login
-                    </button>
-                </form>
+</form>
 
-                <div class="text-center mt-3">
-                    <a href="{{ url_for('main.register') }}">
-                        Don't have an account? Register
-                    </a>
-                </div>
+<div style="margin-top:20px; text-align:center;">
 
-            </div>
-        </div>
+<p style="margin-bottom:10px; opacity:0.8;">
+Don't have an account?
+</p>
 
-    </div>
+<a href="/register"
+class="btn"
+style="
+padding:8px 16px;
+background:#6c757d;
+border-radius:6px;
+font-size:14px;
+text-decoration:none;
+">
+Create Account
+</a>
+
 </div>
 
 {% endblock %}
