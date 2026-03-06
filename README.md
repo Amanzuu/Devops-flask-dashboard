@@ -1,29 +1,68 @@
-“Self-hosted Docker deployment dashboard with background job execution and real-time status tracking”
+1️⃣ Project Title
+# 🚀 DevOps Flask Dashboard
 
-Features
+2️⃣ Short Description
+A mini DevOps platform built with Flask and Docker that allows users to deploy GitHub repositories as Docker containers and monitor them through a real-time dashboard.
 
-Multi-project Docker deployment
+Inspired by platforms like Heroku, Render, and Railway.
 
-Real-time progress tracking
+3️⃣ Features
+- 🚀 GitHub repository deployment
+- ⚙️ CI/CD style deployment pipeline
+- 📜 Real-time deployment logs
+- ⏱ Deployment timeline tracking
+- 📊 Deployment analytics dashboard
+- 🐳 Live Docker container monitoring
+- 🔄 Container restart / stop controls
+- 📈 System monitoring (CPU / RAM)
 
-Auto-detect Flask & Gunicorn servers
+4️⃣ Tech Stack
 
-Deployment history with logs
+  Backend
+- Python
+- Flask
+- SQLAlchemy
+- Flask-Login
 
-Persistent database via Docker volume
+  DevOps
+- Docker
+- Gunicorn
+- Git
 
-Stop & redeploy support
+  Frontend
+- HTML
+- CSS
+- JavaScript
+- Jinja2
 
-Features
+5️⃣ Architecture
 
-One-click Docker deployment
+GitHub Repo
+     ↓
+Clone Repository
+     ↓
+Build Docker Image
+     ↓
+Run Container
+     ↓
+Monitor Container
+     ↓
+View Logs & Analytics
 
-GitHub repo auto-clone
+6️⃣ Project Structure
+## 📂 Project Structure
 
-Container monitoring
+devops-flask-dashboard
+│
+├── app
+│   ├── templates
+│   ├── routes.py
+│   ├── models.py
+│   └── __init__.py
+│
+├── deployments
+├── Dockerfile
+├── requirements.txt
+└── run.py
 
-Deployment logs
 
-Deployment history
-
-Project management dashboard
