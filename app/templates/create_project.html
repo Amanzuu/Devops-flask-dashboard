@@ -6,6 +6,7 @@
 <hr>
 
 <form method="POST">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
     <div class="mb-3">
         <label>Project Name</label>
         <input type="text" name="name" class="form-control" required>

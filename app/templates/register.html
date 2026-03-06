@@ -12,6 +12,7 @@ padding:35px;
 <h2 style="margin-bottom:25px;">Register</h2>
 
 <form method="POST">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
 
 <input
 type="text"

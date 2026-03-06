@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, current_app, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, current_app, jsonify, Response
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from .models import User, Project, Deployment
@@ -7,10 +7,53 @@ from . import db
 import os
 import subprocess
 import time
+import re
+import hmac
+import hashlib
 from datetime import datetime
 from threading import Thread
+import urllib.request
 
 main = Blueprint("main", __name__)
+
+# ==================================================
+# DOCKERFILE DISCOVERY
+# ==================================================
+def find_dockerfile(project_path):
+    dockerfiles = []
+
+    for root, dirs, files in os.walk(project_path):
+        if ".git" in dirs:
+            dirs.remove(".git")
+
+        for file_name in files:
+            if file_name.lower() == "dockerfile":
+                dockerfiles.append(os.path.join(root, file_name))
+
+    if not dockerfiles:
+        return None
+
+    dockerfiles.sort()
+    root_dockerfile = os.path.join(project_path, "Dockerfile")
+
+    if root_dockerfile in dockerfiles:
+        return root_dockerfile
+
+    return dockerfiles[0]
+
+
+def get_owned_project_or_404(project_id):
+    return Project.query.filter_by(
+        id=project_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+
+def parse_project_id_from_container_name(container_name):
+    match = re.fullmatch(r"project_(\d+)_container", container_name)
+    if not match:
+        return None
+    return int(match.group(1))
 
 # ==================================================
 # BACKGROUND DEPLOYMENT FUNCTION
@@ -62,13 +105,21 @@ def run_deployment_async(app, deployment_id):
             db.session.commit()
 
             # ---------------- DOCKERFILE CHECK ----------------
-            if not os.path.exists(os.path.join(project_path, "Dockerfile")):
+            dockerfile_path = find_dockerfile(project_path)
+            if not dockerfile_path:
 
                 deployment.status = "Failed"
-                deployment.logs += "\n❌ Dockerfile not found.\n"
+                deployment.logs += "\n❌ Dockerfile not found in repository.\n"
                 deployment.progress = 100
                 db.session.commit()
                 return
+
+            dockerfile_dir = os.path.dirname(dockerfile_path)
+            deployment.logs += (
+                f"\n🐳 Using Dockerfile: "
+                f"{os.path.relpath(dockerfile_path, project_path)}\n"
+            )
+            db.session.commit()
 
             image_name = f"project_{project.id}_image"
             container_name = f"project_{project.id}_container"
@@ -81,8 +132,8 @@ def run_deployment_async(app, deployment_id):
             db.session.commit()
 
             build = subprocess.Popen(
-                ["docker", "build", "-t", image_name, "."],
-                cwd=project_path,
+                ["docker", "build", "-t", image_name, "-f", dockerfile_path, "."],
+                cwd=dockerfile_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True
@@ -147,7 +198,7 @@ def run_deployment_async(app, deployment_id):
             # ---------------- HEALTH CHECK ----------------
             deployment.logs += "\n🔍 Checking application health...\n"
 
-            if is_app_responding(container_name):
+            if is_app_responding(port):
                 deployment.logs += "\n✅ Application responding successfully!\n"
                 deployment.status = "Success"
             else:
@@ -194,32 +245,20 @@ def is_container_running(container_name):
 # ==================================================
 # HEALTH CHECK
 # ==================================================
-def is_app_responding(container_name, retries=5):
+def is_app_responding(port, retries=15, delay=2):
 
     for _ in range(retries):
 
         try:
 
-            result = subprocess.run(
-                [
-                    "docker",
-                    "exec",
-                    container_name,
-                    "curl",
-                    "-s",
-                    "http://localhost:5000"
-                ],
-                capture_output=True,
-                text=True
-            )
-
-            if result.returncode == 0:
-                return True
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}", timeout=3) as response:
+                if 200 <= response.status < 500:
+                    return True
 
         except Exception:
             pass
 
-        time.sleep(2)
+        time.sleep(delay)
 
     return False
 
@@ -322,14 +361,11 @@ def create_project():
 # ==================================================
 # DEPLOY
 # ==================================================
-@main.route("/projects/<int:project_id>/deploy")
+@main.route("/projects/<int:project_id>/deploy", methods=["POST"])
 @login_required
 def deploy(project_id):
 
-    project = Project.query.filter_by(
-        id=project_id,
-        user_id=current_user.id
-    ).first_or_404()
+    project = get_owned_project_or_404(project_id)
 
     deployment = Deployment(
         project_id=project.id,
@@ -356,9 +392,11 @@ def deploy(project_id):
 # ==================================================
 # STOP PROJECT
 # ==================================================
-@main.route("/projects/<int:project_id>/stop")
+@main.route("/projects/<int:project_id>/stop", methods=["POST"])
 @login_required
 def stop_project(project_id):
+
+    get_owned_project_or_404(project_id)
 
     container_name = f"project_{project_id}_container"
 
@@ -424,7 +462,15 @@ def delete_project(project_id):
 @login_required
 def deployment_history(deployment_id):
 
-    deployment = Deployment.query.get_or_404(deployment_id)
+    deployment = (
+        Deployment.query
+        .join(Project, Deployment.project_id == Project.id)
+        .filter(
+            Deployment.id == deployment_id,
+            Project.user_id == current_user.id
+        )
+        .first_or_404()
+    )
 
     container_logs = deployment.logs or "No logs available"
 
@@ -454,7 +500,22 @@ def deployment_status(deployment_id):
         "port": deployment.port
     })
 
-from flask import Response
+
+@main.route("/api/deployment-snapshot/<int:deployment_id>")
+@login_required
+def deployment_snapshot(deployment_id):
+
+    deployment = db.session.get(Deployment, deployment_id)
+
+    if not deployment or deployment.project.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    return jsonify({
+        "status": deployment.status,
+        "progress": deployment.progress,
+        "port": deployment.port,
+        "logs": deployment.logs or ""
+    })
 
 # ==================================================
 # STREAM DEPLOYMENT LOGS (REAL-TIME)
@@ -463,6 +524,10 @@ from flask import Response
 @main.route("/api/deployment-logs/<int:deployment_id>")
 @login_required
 def stream_deployment_logs(deployment_id):
+
+    deployment = db.session.get(Deployment, deployment_id)
+    if not deployment or deployment.project.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
 
     def generate():
 
@@ -481,8 +546,8 @@ def stream_deployment_logs(deployment_id):
 
                 new_logs = logs[last_length:]
                 last_length = len(logs)
-
-                yield f"data: {new_logs}\n\n"
+                formatted_logs = new_logs.replace("\n", "\ndata: ")
+                yield f"data: {formatted_logs}\n\n"
 
             # stop streaming when deployment finishes
             if deployment.status in ["Success", "Failed"]:
@@ -490,7 +555,14 @@ def stream_deployment_logs(deployment_id):
 
             time.sleep(1)
 
-    return Response(generate(), mimetype="text/event-stream")
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 # ==================================================
 # API ROUTE
@@ -501,6 +573,13 @@ def stream_deployment_logs(deployment_id):
 def docker_stats():
 
     try:
+        owned_project_ids = [
+            project.id for project in
+            Project.query.filter_by(user_id=current_user.id).all()
+        ]
+        allowed_container_names = {
+            f"project_{project_id}_container" for project_id in owned_project_ids
+        }
 
         result = subprocess.run(
             [
@@ -523,9 +602,13 @@ def docker_stats():
 
             cid, name, cpu, mem = line.split("|")
 
+            if name not in allowed_container_names:
+                continue
+
             containers.append({
                 "id": cid,
                 "name": name,
+                "project_id": parse_project_id_from_container_name(name),
                 "cpu": cpu,
                 "memory": mem
             })
@@ -579,8 +662,28 @@ def system_stats():
 def github_webhook(project_id):
 
     project = Project.query.get_or_404(project_id)
+    webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET")
 
-    data = request.json
+    if not webhook_secret:
+        return jsonify({"message": "Webhook secret not configured"}), 503
+
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not signature.startswith("sha256="):
+        return jsonify({"message": "Invalid signature"}), 401
+
+    expected = "sha256=" + hmac.new(
+        webhook_secret.encode("utf-8"),
+        request.data,
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, signature):
+        return jsonify({"message": "Signature verification failed"}), 401
+
+    if request.headers.get("X-GitHub-Event") != "push":
+        return jsonify({"message": "Ignored event"}), 200
+
+    data = request.get_json(silent=True) or {}
 
     # only trigger on push events
     if data.get("ref") != "refs/heads/main":
@@ -611,9 +714,12 @@ def github_webhook(project_id):
 # CONTAINER CONTROL
 # ==================================================
 
-@main.route("/container/restart/<container_name>")
+@main.route("/container/restart/<int:project_id>", methods=["POST"])
 @login_required
-def restart_container(container_name):
+def restart_container(project_id):
+
+    project = get_owned_project_or_404(project_id)
+    container_name = f"project_{project.id}_container"
 
     subprocess.run(
         ["docker", "restart", container_name],
@@ -624,9 +730,12 @@ def restart_container(container_name):
     return redirect(url_for("main.home"))
 
 
-@main.route("/container/stop/<container_name>")
+@main.route("/container/stop/<int:project_id>", methods=["POST"])
 @login_required
-def stop_container(container_name):
+def stop_container(project_id):
+
+    project = get_owned_project_or_404(project_id)
+    container_name = f"project_{project.id}_container"
 
     subprocess.run(
         ["docker", "stop", container_name],
@@ -635,3 +744,56 @@ def stop_container(container_name):
     )
 
     return redirect(url_for("main.home"))
+# ==================================================
+# API ENDPOINT
+# ==================================================
+
+@main.route("/api/deployment-analytics")
+@login_required
+def deployment_analytics():
+
+    from datetime import datetime
+    from sqlalchemy import func
+
+    today = datetime.utcnow().date()
+
+    project_ids = [
+        project.id for project in
+        Project.query.filter_by(user_id=current_user.id).all()
+    ]
+
+    if not project_ids:
+        return jsonify({
+            "today": 0,
+            "success": 0,
+            "failed": 0,
+            "avg_time": 0
+        })
+
+    deployments_today = Deployment.query.filter(
+        Deployment.project_id.in_(project_ids),
+        func.date(Deployment.created_at) == today
+    ).count()
+
+    success = Deployment.query.filter(
+        Deployment.project_id.in_(project_ids),
+        Deployment.status == "Success"
+    ).count()
+
+    failed = Deployment.query.filter(
+        Deployment.project_id.in_(project_ids),
+        Deployment.status == "Failed"
+    ).count()
+
+    avg_time = db.session.query(func.avg(Deployment.duration)).filter(
+        Deployment.project_id.in_(project_ids)
+    ).scalar()
+
+    avg_time = round(avg_time or 0, 2)
+
+    return jsonify({
+        "today": deployments_today,
+        "success": success,
+        "failed": failed,
+        "avg_time": avg_time
+    })

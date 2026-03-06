@@ -8,11 +8,11 @@
 
 <h3>{{ deployment.project.name }}</h3>
 
-<p><strong>Status:</strong> {{ deployment.status }}</p>
+<p><strong>Status:</strong> <span id="deployment-status">{{ deployment.status }}</span></p>
 
-<p><strong>Port:</strong> {{ deployment.port }}</p>
+<p><strong>Port:</strong> <span id="deployment-port">{{ deployment.port }}</span></p>
 
-<p><strong>Progress:</strong> {{ deployment.progress }}%</p>
+<p><strong>Progress:</strong> <span id="deployment-progress">{{ deployment.progress }}%</span></p>
 
 <p><strong>Container ID:</strong> {{ container_id }}</p>
 
@@ -127,15 +127,19 @@ white-space:pre-wrap;
 
 <div style="display:flex; gap:12px; flex-wrap:wrap;">
 
-<a href="{{ url_for('main.deploy', project_id=deployment.project.id) }}"
-class="btn btn-success">
-🔄 Redeploy
-</a>
+<form method="POST"
+action="{{ url_for('main.deploy', project_id=deployment.project.id) }}"
+style="display:inline-block;">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+<button type="submit" class="btn btn-success">🔄 Redeploy</button>
+</form>
 
-<a href="{{ url_for('main.stop_project', project_id=deployment.project.id) }}"
-class="btn btn-danger">
-⛔ Stop
-</a>
+<form method="POST"
+action="{{ url_for('main.stop_project', project_id=deployment.project.id) }}"
+style="display:inline-block;">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+<button type="submit" class="btn btn-danger">⛔ Stop</button>
+</form>
 
 <a href="{{ url_for('main.home') }}"
 class="btn btn-primary">
@@ -151,6 +155,50 @@ class="btn btn-primary">
 <script>
 
 const logConsole = document.getElementById("log-console");
+const statusEl = document.getElementById("deployment-status");
+const progressEl = document.getElementById("deployment-progress");
+const portEl = document.getElementById("deployment-port");
+let lastLogLength = logConsole.textContent.length;
+
+function updateTopSection(data){
+statusEl.textContent = data.status || "Unknown";
+progressEl.textContent = `${data.progress || 0}%`;
+portEl.textContent = data.port || "None";
+}
+
+function updateLogsFromSnapshot(allLogs){
+if(typeof allLogs !== "string"){
+return;
+}
+
+if(allLogs.length < lastLogLength){
+logConsole.textContent = allLogs;
+lastLogLength = allLogs.length;
+logConsole.scrollTop = logConsole.scrollHeight;
+return;
+}
+
+if(allLogs.length > lastLogLength){
+logConsole.textContent += allLogs.slice(lastLogLength);
+lastLogLength = allLogs.length;
+logConsole.scrollTop = logConsole.scrollHeight;
+}
+}
+
+function fetchDeploymentSnapshot(){
+fetch("/api/deployment-snapshot/{{ deployment.id }}")
+.then(res => res.json())
+.then(data => {
+if(data.error){
+return;
+}
+
+updateTopSection(data);
+updateLogsFromSnapshot(data.logs || "");
+updatePipeline();
+updateTimeline();
+});
+}
 
 const eventSource = new EventSource(
 "/api/deployment-logs/{{ deployment.id }}"
@@ -159,6 +207,7 @@ const eventSource = new EventSource(
 eventSource.onmessage = function(event){
 
 logConsole.textContent += event.data;
+lastLogLength = logConsole.textContent.length;
 
 logConsole.scrollTop = logConsole.scrollHeight;
 
@@ -170,6 +219,9 @@ updateTimeline();
 eventSource.onerror = function(){
 console.log("Log stream closed");
 };
+
+setInterval(fetchDeploymentSnapshot, 2000);
+fetchDeploymentSnapshot();
 
 </script>
 
