@@ -18,18 +18,18 @@ Inspired by platforms like Heroku, Render, and Railway.
 
 4️⃣ Tech Stack
 
-  Backend
+Backend
 - Python
 - Flask
 - SQLAlchemy
 - Flask-Login
 
-  DevOps
+DevOps
 - Docker
 - Gunicorn
 - Git
 
-  Frontend
+Frontend
 - HTML
 - CSS
 - JavaScript
