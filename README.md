@@ -1,5 +1,5 @@
 1️⃣ Project Title
-# 🚀 DevOps Flask Dashboard
+# DevOps Flask Dashboard
 
 2️⃣ Short Description
 A mini DevOps platform built with Flask and Docker that allows users to deploy GitHub repositories as Docker containers and monitor them through a real-time dashboard.
