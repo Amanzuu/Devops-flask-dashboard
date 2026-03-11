@@ -73,7 +73,34 @@ Welcome back, {{ current_user.username }} 👋
 <div class="card">
 
 <div style="margin-bottom:15px;">
+<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
 <h3 style="margin:0;">{{ item.project.name }}</h3>
+<button
+type="button"
+class="btn btn-secondary"
+style="padding:6px 10px; font-size:12px;"
+onclick="toggleNameEditor({{ item.project.id }})">
+✏ Edit Name
+</button>
+</div>
+
+<form
+id="name-edit-form-{{ item.project.id }}"
+method="POST"
+action="{{ url_for('main.update_project_name', project_id=item.project.id) }}"
+style="display:none; margin-top:10px; gap:10px; align-items:center; flex-wrap:wrap;">
+<input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+<input
+type="text"
+name="name"
+value="{{ item.project.name }}"
+maxlength="150"
+required
+style="padding:8px 10px; border-radius:8px; border:1px solid #666; min-width:220px;">
+<button type="submit" class="btn btn-primary" style="padding:8px 12px;">Save</button>
+<button type="button" class="btn" style="background:#444;" onclick="toggleNameEditor({{ item.project.id }})">Cancel</button>
+</form>
+
 <p style="opacity:0.6; margin-top:5px;">
 {{ item.project.github_repo }}
 </p>
@@ -240,6 +267,27 @@ Loading container stats...
 <!-- ===================================== -->
 
 <script>
+
+function toggleNameEditor(projectId){
+
+const form = document.getElementById(`name-edit-form-${projectId}`);
+
+if(!form){
+return;
+}
+
+const showForm = form.style.display !== "flex";
+form.style.display = showForm ? "flex" : "none";
+
+if(showForm){
+const input = form.querySelector('input[name="name"]');
+if(input){
+input.focus();
+input.select();
+}
+}
+
+}
 
 function loadAnalytics(){
 

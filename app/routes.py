@@ -358,6 +358,20 @@ def create_project():
     return render_template("create_project.html")
 
 
+@main.route("/projects/<int:project_id>/name", methods=["POST"])
+@login_required
+def update_project_name(project_id):
+
+    project = get_owned_project_or_404(project_id)
+    new_name = request.form.get("name", "").strip()
+
+    if new_name:
+        project.name = new_name[:150]
+        db.session.commit()
+
+    return redirect(url_for("main.home"))
+
+
 # ==================================================
 # DEPLOY
 # ==================================================
