@@ -31,7 +31,32 @@
 
 <div align='center'>
     <img src="./ui-preview-2.png" alt="DevOps Flask Dashboard UI Preview 2" width="900" align="center">
-    <p align="center"><em>Deployment workflow, monitoring endpoints, and repository-based container operations</em></p>
+    <p align="center"><em>User registration and authentication flow for isolated project management</em></p>
+</div>
+
+<div align='center'>
+    <img src="./ui-preview-3.png" alt="DevOps Flask Dashboard UI Preview 3" width="900" align="center">
+    <p align="center"><em>Main dashboard showing projects, deployment status, and operational controls</em></p>
+</div>
+
+<div align='center'>
+    <img src="./ui-preview-4.png" alt="DevOps Flask Dashboard UI Preview 4" width="900" align="center">
+    <p align="center"><em>Create project workflow for connecting a GitHub repository to the deployment pipeline</em></p>
+</div>
+
+<div align='center'>
+    <img src="./ui-preview-5.png" alt="DevOps Flask Dashboard UI Preview 5" width="900" align="center">
+    <p align="center"><em>Deployment history view with logs, timing, and execution progress visibility</em></p>
+</div>
+
+<div align='center'>
+    <img src="./ui-preview-6.png" alt="DevOps Flask Dashboard UI Preview 6" width="900" align="center">
+    <p align="center"><em>Live monitoring experience for deployment output and runtime container feedback</em></p>
+</div>
+
+<div align='center'>
+    <img src="./ui-preview-7.png" alt="DevOps Flask Dashboard UI Preview 7" width="900" align="center">
+    <p align="center"><em>Repository-based container operations with monitoring endpoints and deployment management</em></p>
 </div>
 
 ### Tools and Technologies
